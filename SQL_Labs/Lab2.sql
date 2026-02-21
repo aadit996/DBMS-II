@@ -1,0 +1,175 @@
+--Part – A 
+--1.	INSERT Procedures: Create stored procedures to insert records into STUDENT tables (SP_INSERT_STUDENT)
+
+Go
+CREATE OR ALTER PROCEDURE  SP_INSERT_STUDENT
+@STUID INT,
+@NAME VARCHAR(100),
+@EMAIL VARCHAR(100),
+@PHONE VARCHAR(15),
+@DEPARTMENT VARCHAR(50),
+@DOB DATE,
+@ENROLLMENTYEAR INT
+AS
+BEGIN
+INSERT INTO ST
+UDENT VALUES(@STUID,@NAME,@EMAIL,@PHONE,@DEPARTMENT,@DOB,@ENROLLMENTYEAR)
+END
+Go
+
+SELECT * FROM STUDENT
+
+
+EXECUTE SP_INSERT_STUDENT 10,'Harsh Parmar','harsh@univ.edu','9876543219','CSE','2005-09-18',2023 
+EXEC SP_INSERT_STUDENT 11,'Om Patel','om@univ.edu','9876543220','IT','2002-08-22',2022 
+
+
+--2.	INSERT Procedures: Create stored procedures to insert records into COURSE tables 
+--(SP_INSERT_COURSE)
+
+GO
+CREATE OR ALTER PROCEDURE SP_INSERT_COURSE
+@COURSEID VARCHAR(10),
+@COURSENAME VARCHAR(100),
+@COURSECREDITS INT,
+@COURSEDEPARTMENT VARCHAR(50),
+@COURSESEMESTER INT
+AS
+BEGIN
+    INSERT INTO COURSE VALUES(@COURSEID,@COURSENAME,@COURSECREDITS,@COURSEDEPARTMENT,@COURSESEMESTER)
+END
+GO		
+
+EXEC SP_INSERT_COURSE 'CS330','Computer Networks',4,'CSE',5
+EXEC SP_INSERT_COURSE 'EC120','Electronic Circuits',3,'ECE',2
+
+--3.	UPDATE Procedures: Create stored procedure SP_UPDATE_STUDENT to update Email and Phone in STUDENT table. (Update using studentID)
+
+GO
+CREATE OR ALTER PROCEDURE SP_UPDATE_STUDENT 
+@STUID INT,@EMAIL VARCHAR(100),@PHONE VARCHAR(15)
+AS
+BEGIN
+
+UPDATE STUDENT
+SET StuEmail=@EMAIL,StuPhone=@PHONE
+WHERE StudentID=@STUID
+
+END
+GO
+
+EXEC SP_UPDATE_STUDENT 1,'AADIT@GMAIL.COM','1234567890' 
+
+
+--4.	DELETE Procedures: Create stored procedure SP_DELETE_STUDENT to delete records from STUDENT where Student Name is Om Patel.
+
+GO
+CREATE OR ALTER PROCEDURE SP_DELETE_STUDENT
+@StuName VARCHAR(100)
+AS
+BEGIN
+
+DELETE FROM STUDENT
+WHERE StuName=@StuName
+
+
+END
+GO
+
+EXEC SP_DELETE_STUDENT 'Om Patel'
+
+SELECT * FROM STUDENT
+
+--5.	SELECT BY PRIMARY KEY: Create stored procedures to select records by primary key (SP_SELECT_STUDENT_BY_ID) from Student table.
+
+GO
+CREATE OR ALTER PROCEDURE SP_SELECT_STUDENT_BY_ID
+@STUID INT
+AS
+BEGIN
+SELECT *
+FROM STUDENT
+WHERE StudentID=@STUID
+END
+GO
+
+EXEC SP_SELECT_STUDENT_BY_ID 1
+
+--6.	Create a stored procedure that shows details of the first 5 students ordered by EnrollmentYear.
+
+GO
+CREATE OR ALTER PROCEDURE PR_6
+AS
+BEGIN
+SELECT TOP 6 *
+FROM STUDENT
+END
+GO
+
+EXEC PR_6 
+
+
+--Part – B  
+--7.	Create a stored procedure which displays faculty designation-wise count.
+
+GO
+CREATE OR ALTER PROCEDURE PR_FACULTY_DESIGNATION_WISE_COUNT
+AS
+BEGIN
+SELECT FacultyDesignation,COUNT(FacultyID)
+FROM FACULTY
+GROUP BY FacultyDesignation
+END 
+GO
+
+EXEC PR_FACULTY_DESIGNATION_WISE_COUNT
+
+--8.	Create a stored procedure that takes department name as input and returns all students in that department.
+
+GO
+CREATE OR ALTER PROCEDURE PR_DNAME_STUNAME
+@DNAME VARCHAR(50)
+AS
+BEGIN 
+
+SELECT * 
+FROM STUDENT
+WHERE StuDepartment=@DNAME
+END
+GO
+
+EXEC  PR_DNAME_STUNAME 'IT'
+
+--Part – C 
+--9.Create a stored procedure which displays department-wise maximum, minimum, and average credits of courses.
+
+GO
+CREATE OR ALTER PROCEDURE PR_DEPTWISE_DATA
+AS
+BEGIN
+SELECT CourseDepartment,AVG(CourseCredits) AS [AVG],MAX(CourseCredits) AS [MAX],MIN(CourseCredits) AS [MIN]
+FROM COURSE
+GROUP BY CourseDepartment
+END
+GO
+
+EXEC PR_DEPTWISE_DATA 
+
+--10.	Create a stored procedure that accepts StudentID as parameter and returns all courses the student is enrolled in with their grades.
+
+GO
+CREATE OR ALTER PROCEDURE PR_STU_DETAILS
+@STUID AS INT
+AS
+BEGIN
+SELECT STUDENT.StuName,COURSE.CourseName,ENROLLMENT.Grade
+FROM STUDENT INNER JOIN ENROLLMENT
+ON STUDENT.StudentID=ENROLLMENT.StudentID
+INNER JOIN COURSE
+ON ENROLLMENT.CourseID=COURSE.CourseID
+WHERE STUDENT.StudentID=@STUID
+END
+GO
+
+EXEC PR_STU_DETAILS 1
+

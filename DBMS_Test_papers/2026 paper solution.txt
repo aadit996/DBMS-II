@@ -1,0 +1,161 @@
+
+
+Consider above tables schema and Write following queries:
+1. Calculate CGPA of all students.
+
+SELECT 
+    s.StudentID,
+    s.EnrollmentNo,
+    ROUND(
+        SUM(r.Gradepoint * sub.Credits) * 1.0 / SUM(sub.Credits),
+        2
+    ) AS CGPA
+FROM Students s
+JOIN Results r 
+    ON s.StudentID = r.StudentID
+JOIN Subjects sub 
+    ON r.SubjectID = sub.SubjectID
+GROUP BY s.StudentID, s.EnrollmentNo;
+
+
+2. List students which are currently studying in 6th semester and having CGPA more than 7.5.
+
+SELECT 
+    STUDENT.StudentID,
+    STUDENT.EnrollmentNo,
+    STUDENT.Name,
+    STUDENT.CurrentSemester,
+    STUDENT.CGPA
+FROM STUDENT
+WHERE STUDENT.CGPA > 7.5
+  AND STUDENT.CurrentSemester = 6;
+
+
+3. List branch wise Top 5 students based on CGPA. Same CGPA must have same rank.
+
+```sql
+SELECT s.Branch, s.Name
+FROM Student s
+WHERE (
+    SELECT COUNT(DISTINCT s2.CGPA)
+    FROM Student s2
+    WHERE s2.Branch = s.Branch
+      AND s2.CGPA > s.CGPA
+) < 5
+ORDER BY s.Branch, s.CGPA DESC;
+```
+
+
+4. List students with subjects which were Absent in the exam.
+
+SELECT Students.Name, Subjects.SubjectName, Results.Grade 
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+where Results.ResultStatus = 'Absent'
+
+
+5. List subjects which are never taken by any student.
+
+SELECT Subject,COUNT(STUDENTID) 
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+RIGHT OUTER JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+GROUP BY SUBJECT
+HAVING COUNT(STUDENTID) = 0
+
+
+
+6. List students with subjects who failed the same subject more than once.
+
+
+SELECT Students.Name , Subjects.SubjectName , COUNT(Results.Grade) 
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+WHERE Results.Grade = 'FF'
+GROUP BY Students.Student, Subjects.Subject
+HAVING COUNT(Results.Grade) > 1
+
+
+7. List students with subject & result whose first exam was within 6 months of the enrollment.
+
+SELECT 
+    s.Name,
+    sub.SubjectName,
+    r.Grade
+FROM Students s
+JOIN Results r
+    ON s.StudentID = r.StudentID
+JOIN Subjects sub
+    ON r.SubjectID = sub.SubjectID
+WHERE r.ExamDate = (
+        SELECT MIN(r2.ExamDate)
+        FROM Results r2
+        WHERE r2.StudentID = s.StudentID
+      )
+AND DATEDIFF(month, s.EnrollmentDate, r.ExamDate) <= 6;
+
+
+
+8. List all subjects along with number of students enrolled.
+
+
+SELECT  Subjects.SubjectName , COUNT(DISTINCT Students.StudentID) 
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+GROUP BY Subjects.SubjectName 
+
+
+
+
+9. Create Histogram. Histogram means Subject wise Grade wise Student count.
+
+SELECT  Subjects.SubjectName , Results.Grade, COUNT(DISTINCT Students.StudentID) 
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+GROUP BY Subjects.SubjectName , Results.Grade
+
+
+10. List students with subject name which are not cleared by the student.
+
+SELECT  Students.Name , Subjects.SubjectName 
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+WHERE RESULTS.RESULTSTATUS = 'FAIL'
+
+11. List students which never failed in any subject in any semester.
+
+SELECT  DISTINCT Students.Name
+FROM Students 
+JOIN Results 
+    ON Students.StudentID = Results.StudentID
+JOIN Subjects  
+    ON Results.SubjectID = Subjects.SubjectID
+WHERE STUDENTS.STUDENTID NOT IN (
+SELECT RESULTS.STUDENTID
+FROM RESULTS
+WHERE rESULTS.GradePoint = 'FF'
+       OR rESULTS.ResultStatus = 'FAIL'
+)
+
+12. Write a query to compare two students' result. Display following columns Enrollment No,
+Semester, Subject Code, Grade, Grade Comparison Status (Matched, Not-Matched, Subject
+Not Found). Display all the subjects of both students.
+13. List students who have cleared the subjects in more than 5 attempts.
+
