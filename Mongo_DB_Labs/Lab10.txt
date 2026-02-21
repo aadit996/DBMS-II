@@ -123,11 +123,11 @@ db.Deposit.find({},{_id:0,CNAME:1, BNAME:1 ,AMOUNT:1})
 
 9. Display all the documents of Deposit collection in ascending order by CNAME. 
 
-
+db.Deposit.find().sort({CNAME:1})
 
 10. Display all the documents of Deposit collection in descending order by BNAME. 
 
-db.Deposit.find().sort({BNAME:1})
+db.Deposit.find().sort({BNAME:-1})
 
 11. Display all the documents of Deposit collection in ascending order by ACTNO and descending order by 
 AMOUNT. 
