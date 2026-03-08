@@ -1,0 +1,543 @@
+Lab-13 Aggregate Method
+MongoDB
+==============================================================
+THEORY : What is Aggregation?
+==============================================================
+
+In simple words:
+  Aggregation = analyzing and summarizing data (not just displaying it).
+  It is used to do things like COUNT, SUM, AVG, MAX, MIN — same as what
+  you do in MSSQL with GROUP BY queries.
+
+------------------------------------------------------------
+MSSQL vs MongoDB Aggregation — Side by Side
+------------------------------------------------------------
+
+MSSQL:
+  SELECT CITY, COUNT(*) AS count FROM Student GROUP BY CITY;
+
+MongoDB Equivalent:
+  db.Student.aggregate([
+    { $group: { _id: "$CITY", count: { $sum: 1 } } }
+  ])
+
+------------------------------------------------------------
+General Syntax:
+  db.<collection>.aggregate([ stage1, stage2, ... ])
+
+Each "stage" is one step. Output of one stage → input of next stage.
+
+------------------------------------------------------------
+Important Stages:
+
+  $match  → filter rows        (like WHERE in MSSQL)
+  $group  → group data         (like GROUP BY in MSSQL)
+  $sort   → sort results       (like ORDER BY in MSSQL)
+  $limit  → limit rows         (like TOP N in MSSQL)
+  $project→ select fields      (like SELECT col1, col2 in MSSQL)
+  $count  → count documents    (like COUNT(*) in MSSQL)
+
+------------------------------------------------------------
+$group syntax explained:
+
+  { $group: { _id: "$FIELD", result: { $operator: "$FIELD" } } }
+
+  _id: "$CITY"   → group by CITY        (like GROUP BY CITY)
+  _id: null      → no grouping, all docs in one group (like no GROUP BY)
+
+  Operators:
+    $sum: 1         → count documents
+    $sum: "$FEES"   → sum of FEES field
+    $avg: "$FEES"   → average of FEES
+    $max: "$FEES"   → maximum FEES
+    $min: "$FEES"   → minimum FEES
+
+------------------------------------------------------------
+Pipeline Flow (same as MSSQL query order):
+
+  $match  (WHERE)
+     ↓
+  $group  (GROUP BY + aggregate functions)
+     ↓
+  $match  (HAVING — filter on grouped results)
+     ↓
+  $sort   (ORDER BY)
+     ↓
+  $limit  (TOP N)
+
+==============================================================
+PART A – Student Collection
+==============================================================
+
+db.Student.insertMany([
+  { ROLLNO: 101, SNAME: "Vina",   DEPARTMENT: "CE",         FEES: 15000, SEM: 3, GENDER: "Female", CITY: "Rajkot"    },
+  { ROLLNO: 102, SNAME: "Krisha", DEPARTMENT: "EC",         FEES: 8000,  SEM: 5, GENDER: "Female", CITY: "Ahmedabad" },
+  { ROLLNO: 103, SNAME: "Priti",  DEPARTMENT: "Civil",      FEES: 12000, SEM: 7, GENDER: "Female", CITY: "Baroda"    },
+  { ROLLNO: 104, SNAME: "Mitul",  DEPARTMENT: "CE",         FEES: 15000, SEM: 3, GENDER: "Male",   CITY: "Rajkot"    },
+  { ROLLNO: 105, SNAME: "Keshav", DEPARTMENT: "CE",         FEES: 15000, SEM: 3, GENDER: "Male",   CITY: "Jamnagar"  },
+  { ROLLNO: 106, SNAME: "Zarna",  DEPARTMENT: "Civil",      FEES: 12000, SEM: 5, GENDER: "Female", CITY: "Ahmedabad" },
+  { ROLLNO: 107, SNAME: "Nima",   DEPARTMENT: "EE",         FEES: 9000,  SEM: 5, GENDER: "Female", CITY: "Rajkot"    },
+  { ROLLNO: 108, SNAME: "Dhruv",  DEPARTMENT: "Mechanical", FEES: 10000, SEM: 5, GENDER: "Male",   CITY: "Rajkot"    },
+  { ROLLNO: 109, SNAME: "Krish",  DEPARTMENT: "Mechanical", FEES: 10000, SEM: 7, GENDER: "Male",   CITY: "Baroda"    },
+  { ROLLNO: 110, SNAME: "Zeel",   DEPARTMENT: "EE",         FEES: 9000,  SEM: 3, GENDER: "Female", CITY: "Jamnagar"  }
+]);
+
+------------------------------------------------------------------
+
+1. Display distinct city.
+-- MSSQL: SELECT DISTINCT CITY FROM Student;
+-- Group by CITY, then project only city name (hide _id)
+db.Student.aggregate([
+  { $group: { _id: "$CITY" } },
+  { $project: { _id: 0, City: "$_id" } }
+])
+--If you skip $project, the output will only show whatever fields you defined inside $group.
+------------------------------------------------------------------
+
+2. Display city wise count of number of students.
+-- MSSQL: SELECT CITY, COUNT(*) FROM Student GROUP BY CITY;
+-- $sum: 1 means count each document as 1
+db.Student.aggregate([
+  { $group: { _id: "$CITY", count: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+3. Display sum of fees in your collection.
+-- MSSQL: SELECT SUM(FEES) FROM Student;
+-- _id: null = no grouping, treat all docs as one group
+db.Student.aggregate([
+  { $group: { _id: null, totalFees: { $sum: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+4. Display average of fees in your collection.
+-- MSSQL: SELECT AVG(FEES) FROM Student;
+db.Student.aggregate([
+  { $group: { _id: null, avgFees: { $avg: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+5. Display maximum and minimum fees of your collection.
+-- MSSQL: SELECT MAX(FEES), MIN(FEES) FROM Student;
+db.Student.aggregate([
+  { $group: { _id: null, maxFees: { $max: "$FEES" }, minFees: { $min: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+6. Display city wise total fees in your collection.
+-- MSSQL: SELECT CITY, SUM(FEES) FROM Student GROUP BY CITY;
+db.Student.aggregate([
+  { $group: { _id: "$CITY", totalFees: { $sum: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+7. Display gender wise maximum fees in your collection.
+-- MSSQL: SELECT GENDER, MAX(FEES) FROM Student GROUP BY GENDER;
+db.Student.aggregate([
+  { $group: { _id: "$GENDER", maxFees: { $max: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+8. Display city wise maximum and minimum fees.
+-- MSSQL: SELECT CITY, MAX(FEES), MIN(FEES) FROM Student GROUP BY CITY;
+db.Student.aggregate([
+  { $group: { _id: "$CITY", maxFees: { $max: "$FEES" }, minFees: { $min: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+9. Display count of persons lives in Baroda city in your collection.
+-- MSSQL: SELECT COUNT(*) FROM Student WHERE CITY = 'Baroda';
+-- $match first filters, then $count counts the result
+db.Student.aggregate([
+  { $match: { CITY: "Baroda" } },
+  { $count: "Persons" }
+])
+OR
+db.Student.aggregate([
+  { $match: { CITY: "Baroda" } },
+  { $group: { _id: "$CITY", Persons: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+10. Display average fees of Rajkot city.
+-- MSSQL: SELECT AVG(FEES) FROM Student WHERE CITY = 'Rajkot';
+db.Student.aggregate([
+  { $match: { CITY: "Rajkot" } },
+  { $group: { _id: "$CITY", avgFees: { $avg: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+11. Count the number of male and female students in each Department.
+-- MSSQL: SELECT DEPARTMENT, GENDER, COUNT(*) FROM Student GROUP BY DEPARTMENT, GENDER;
+-- Group by TWO fields using an object in _id
+db.Student.aggregate([
+  { $group: { _id: { Department: "$DEPARTMENT", Gender: "$GENDER" }, Count: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+12. Find the total Fees collected from each Department.
+-- MSSQL: SELECT DEPARTMENT, SUM(FEES) FROM Student GROUP BY DEPARTMENT;
+db.Student.aggregate([
+  { $group: { _id: "$DEPARTMENT", totalFees: { $sum: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+13. Find the minimum Fees paid by male and female students in each City.
+-- MSSQL: SELECT CITY, GENDER, MIN(FEES) FROM Student GROUP BY CITY, GENDER;
+db.Student.aggregate([
+  { $group: { _id: { City: "$CITY", Gender: "$GENDER" }, minFees: { $min: "$FEES" } } }
+])
+
+------------------------------------------------------------------
+
+14. Sort students by Fees in descending order and return the top 5.
+-- MSSQL: SELECT TOP 5 * FROM Student ORDER BY FEES DESC;
+-- $sort: -1 = descending, 1 = ascending
+db.Student.aggregate([
+  { $sort: { FEES: -1 } },
+  { $limit: 5 }
+])
+
+------------------------------------------------------------------
+
+15. Group students by City and calculate the average Fees for each city,
+    only including cities with avg fees more than 12000.
+-- MSSQL: SELECT CITY, AVG(FEES) FROM Student GROUP BY CITY HAVING AVG(FEES) > 12000;
+-- Second $match after $group acts like HAVING in MSSQL
+db.Student.aggregate([
+  { $group: { _id: "$CITY", avgFees: { $avg: "$FEES" } } },
+  { $match: { avgFees: { $gt: 12000 } } }
+])
+
+------------------------------------------------------------------
+
+16. Filter students from CE or Mechanical department, then calculate the total Fees.
+-- MSSQL: SELECT SUM(FEES) FROM Student WHERE DEPARTMENT IN ('CE','Mechanical');
+-- $in checks if value is in a list
+	db.Student.aggregate([
+  { $match: { DEPARTMENT: { $in: ["CE", "Mechanical"] } } },
+  { $group: { _id: DEPARTMENT, totalFees: { $sum: "$FEES" } } }
+])
+
+
+------------------------------------------------------------------
+
+17. Group students by City, Department and Gender and calculate the max, min and average Fees.
+-- MSSQL: SELECT CITY, DEPARTMENT, GENDER, MAX(FEES), MIN(FEES), AVG(FEES)
+--        FROM Student GROUP BY CITY, DEPARTMENT, GENDER;
+db.Student.aggregate([
+  { $group: {
+      _id: { City: "$CITY", Department: "$DEPARTMENT", Gender: "$GENDER" },
+      maxFees: { $max: "$FEES" },
+      minFees: { $min: "$FEES" },
+      avgFees: { $avg: "$FEES" }
+  }}
+])
+
+------------------------------------------------------------------
+
+18. Filter students from Rajkot, then group by Department and find the average Fees.
+-- MSSQL: SELECT DEPARTMENT, AVG(FEES) FROM Student WHERE CITY='Rajkot' GROUP BY DEPARTMENT;
+db.Student.aggregate([
+  { $match: { CITY: "Rajkot" } },
+  { $group: { _id: "$DEPARTMENT", avgFees: { $avg: "$FEES" } } }
+])
+OR
+-- to also show city
+db.Student.aggregate([
+  { $match: { CITY: "Rajkot" } },
+  { $group: { _id: { City: "$CITY", Department: "$DEPARTMENT" }, avgFees: { $avg: "$FEES" } } }
+])
+------------------------------------------------------------------
+
+19. Group by Sem and calculate both the total and average Fees,
+    then sort by total fees in descending order.
+-- MSSQL: SELECT SEM, SUM(FEES), AVG(FEES) FROM Student GROUP BY SEM ORDER BY SUM(FEES) DESC;
+db.Student.aggregate([
+  { $group: { _id: "$SEM", totalFees: { $sum: "$FEES" }, avgFees: { $avg: "$FEES" } } },
+  { $sort: { totalFees: -1 } }
+])
+
+------------------------------------------------------------------
+
+20. Find the top 3 cities with the highest total Fees collected.
+-- MSSQL: SELECT TOP 3 CITY, SUM(FEES) FROM Student GROUP BY CITY ORDER BY SUM(FEES) DESC;
+db.Student.aggregate([
+  { $group: { _id: "$CITY", totalFees: { $sum: "$FEES" } } },
+  { $sort: { totalFees: -1 } },
+  { $limit: 3 }
+])
+
+
+==============================================================
+PART B – Stock Collection
+==============================================================
+
+db.createCollection("Stock")
+
+db.Stock.insertMany([
+  { _id: 1, company: "Company-A", sector: "Technology",    eps: 5.2, pe: 15.3, roe: 12.8, sales: 300000, profit: 25000 },
+  { _id: 2, company: "Company-B", sector: "Finance",       eps: 7.1, pe: 12.4, roe: 10.9, sales: 500000, profit: 55000 },
+  { _id: 3, company: "Company-C", sector: "Retail",        eps: 3.8, pe: 22.1, roe: 9.5,  sales: 200000, profit: 15000 },
+  { _id: 4, company: "Company-D", sector: "Technology",    eps: 5.2, pe: 15.3, roe: 12.8, sales: 300000, profit: 25000 },
+  { _id: 5, company: "Company-E", sector: "Finance",       eps: 7.1, pe: 12.4, roe: 10.9, sales: 450000, profit: 40000 },
+  { _id: 6, company: "Company-F", sector: "Healthcare",    eps: 3.8, pe: 18.9, roe: 9.5,  sales: 500000, profit: 3500  },
+  { _id: 7, company: "Company-G", sector: "Retail",        eps: 4.3, pe: 22.1, roe: 14.2, sales: 600000, profit: 45000 },
+  { _id: 8, company: "Company-H", sector: "Energy",        eps: 6.5, pe: 10.5, roe: 16.4, sales: 550000, profit: 50000 },
+  { _id: 9, company: "Company-I", sector: "Consumer Goods",eps: 2.9, pe: 25.3, roe: 7.8,  sales: 350000, profit: 20000 }
+]);
+
+------------------------------------------------------------------
+
+3. Calculate the total sales of all companies.
+-- MSSQL: SELECT SUM(sales) FROM Stock;
+db.Stock.aggregate([
+  { $group: { _id: null, totalSales: { $sum: "$sales" } } }
+])
+
+------------------------------------------------------------------
+
+4. Find the average profit for companies in each sector.
+-- MSSQL: SELECT sector, AVG(profit) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", avgProfit: { $avg: "$profit" } } }
+])
+
+------------------------------------------------------------------
+
+5. Get the count of companies in each sector.
+-- MSSQL: SELECT sector, COUNT(*) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", count: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+6. Find the company with the highest PE ratio.
+-- MSSQL: SELECT TOP 1 * FROM Stock ORDER BY pe DESC;
+db.Stock.aggregate([
+  { $sort: { pe: -1 } },
+  { $limit: 1 }
+])
+
+------------------------------------------------------------------
+
+7. Filter companies with PE ratio greater than 20.
+-- MSSQL: SELECT * FROM Stock WHERE pe > 20;
+db.Stock.aggregate([
+  { $match: { pe: { $gt: 20 } } }
+])
+
+------------------------------------------------------------------
+
+8. Calculate the total profit of companies with sales greater than 250,000.
+-- MSSQL: SELECT SUM(profit) FROM Stock WHERE sales > 250000;
+db.Stock.aggregate([
+  { $match: { sales: { $gt: 250000 } } },
+  { $group: { _id: null, totalProfit: { $sum: "$profit" } } }
+])
+
+------------------------------------------------------------------
+
+9. Project only the company name and profit fields.
+-- MSSQL: SELECT company, profit FROM Stock;
+-- $project: 1 = show field, 0 = hide field
+db.Stock.aggregate([
+  { $project: { _id: 0, company: 1, profit: 1 } }
+])
+
+------------------------------------------------------------------
+
+10. Find companies where EPS is greater than the average EPS.
+-- MSSQL: SELECT * FROM Stock WHERE eps > (SELECT AVG(eps) FROM Stock);
+-- Step 1: $group to get avg EPS
+-- Step 2: $lookup or $addFields with $$ROOT — simpler with two aggregate calls
+-- Simple approach: calculate avg first, then filter manually
+-- Full pipeline approach:
+db.Stock.aggregate([
+  { $group: { _id: null, avgEps: { $avg: "$eps" }, companies: { $push: "$$ROOT" } } },
+  { $unwind: "$companies" },
+  { $match: { $expr: { $gt: ["$companies.eps", "$avgEps"] } } },
+  { $replaceRoot: { newRoot: "$companies" } }
+])
+
+------------------------------------------------------------------
+
+11. Group companies by sector and get the maximum sales in each sector.
+-- MSSQL: SELECT sector, MAX(sales) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", maxSales: { $max: "$sales" } } }
+])
+
+------------------------------------------------------------------
+
+12. Calculate the total sales and total profit of companies in each sector.
+-- MSSQL: SELECT sector, SUM(sales), SUM(profit) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", totalSales: { $sum: "$sales" }, totalProfit: { $sum: "$profit" } } }
+])
+
+------------------------------------------------------------------
+
+13. Sort companies by profit in descending order.
+-- MSSQL: SELECT * FROM Stock ORDER BY profit DESC;
+db.Stock.aggregate([
+  { $sort: { profit: -1 } }
+])
+
+------------------------------------------------------------------
+
+14. Find the average ROE across all companies.
+-- MSSQL: SELECT AVG(roe) FROM Stock;
+db.Stock.aggregate([
+  { $group: { _id: null, avgROE: { $avg: "$roe" } } }
+])
+
+------------------------------------------------------------------
+
+15. Group companies by sector and calculate both the minimum and maximum EPS.
+-- MSSQL: SELECT sector, MIN(eps), MAX(eps) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", minEPS: { $min: "$eps" }, maxEPS: { $max: "$eps" } } }
+])
+
+
+==============================================================
+PART C – Stock Collection (Advanced)
+==============================================================
+
+1. Count the number of companies with profit greater than 30,000.
+-- MSSQL: SELECT COUNT(*) FROM Stock WHERE profit > 30000;
+db.Stock.aggregate([
+  { $match: { profit: { $gt: 30000 } } },
+  { $count: "companiesCount" }
+])
+
+------------------------------------------------------------------
+
+2. Get the total profit by sector and sort by descending order by total profit.
+-- MSSQL: SELECT sector, SUM(profit) FROM Stock GROUP BY sector ORDER BY SUM(profit) DESC;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", totalProfit: { $sum: "$profit" } } },
+  { $sort: { totalProfit: -1 } }
+])
+
+------------------------------------------------------------------
+
+3. Find the top 3 companies with the highest sales.
+-- MSSQL: SELECT TOP 3 * FROM Stock ORDER BY sales DESC;
+db.Stock.aggregate([
+  { $sort: { sales: -1 } },
+  { $limit: 3 }
+])
+
+------------------------------------------------------------------
+
+4. Calculate the average PE ratio of companies grouped by sector.
+-- MSSQL: SELECT sector, AVG(pe) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", avgPE: { $avg: "$pe" } } }
+])
+
+------------------------------------------------------------------
+
+5. Get the sum of sales and profit for each company.
+-- MSSQL: SELECT company, sales+profit AS total FROM Stock;
+-- $project with $add to sum two fields
+db.Stock.aggregate([
+  { $project: { company: 1, totalSalesAndProfit: { $add: ["$sales", "$profit"] }, _id: 0 } }
+])
+
+------------------------------------------------------------------
+
+6. Find companies with sales less than 400,000 and sort them by sales in descending order.
+-- MSSQL: SELECT * FROM Stock WHERE sales < 400000 ORDER BY sales DESC;
+db.Stock.aggregate([
+  { $match: { sales: { $lt: 400000 } } },
+  { $sort: { sales: -1 } }
+])
+
+------------------------------------------------------------------
+
+7. Group companies by sector and find the total number of companies in each sector.
+-- MSSQL: SELECT sector, COUNT(*) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", totalCompanies: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+8. Get the average ROE for companies with sales greater than 200,000.
+-- MSSQL: SELECT AVG(roe) FROM Stock WHERE sales > 200000;
+db.Stock.aggregate([
+  { $match: { sales: { $gt: 200000 } } },
+  { $group: { _id: null, avgROE: { $avg: "$roe" } } }
+])
+
+------------------------------------------------------------------
+
+9. Find the maximum profit in each sector.
+-- MSSQL: SELECT sector, MAX(profit) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", maxProfit: { $max: "$profit" } } }
+])
+
+------------------------------------------------------------------
+
+10. Get the total sales and count of companies in each sector.
+-- MSSQL: SELECT sector, SUM(sales), COUNT(*) FROM Stock GROUP BY sector;
+db.Stock.aggregate([
+  { $group: { _id: "$sector", totalSales: { $sum: "$sales" }, count: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+11. Project fields where profit is more than 20,000 and only show company and profit.
+-- MSSQL: SELECT company, profit FROM Stock WHERE profit > 20000;
+-- $match to filter, then $project to select fields
+db.Stock.aggregate([
+  { $match: { profit: { $gt: 20000 } } },
+  { $project: { _id: 0, company: 1, profit: 1 } }
+])
+
+------------------------------------------------------------------
+
+12. Find companies with the lowest ROE and sort them in ascending order.
+-- MSSQL: SELECT * FROM Stock ORDER BY roe ASC;
+-- $sort: 1 = ascending
+db.Stock.aggregate([
+  { $sort: { roe: 1 } }
+])
+
+==============================================================
+QUICK REFERENCE SUMMARY
+==============================================================
+
+Operation         MongoDB                       MSSQL Equivalent
+-----------       -------                       ----------------
+Filter            $match: { field: value }      WHERE field = value
+Group by          $group: { _id: "$field" }     GROUP BY field
+Count             $sum: 1                       COUNT(*)
+Sum               $sum: "$field"                SUM(field)
+Average           $avg: "$field"                AVG(field)
+Max               $max: "$field"                MAX(field)
+Min               $min: "$field"                MIN(field)
+Sort DESC         $sort: { field: -1 }          ORDER BY field DESC
+Sort ASC          $sort: { field: 1 }           ORDER BY field ASC
+Top N             $limit: N                     TOP N
+Select columns    $project: { col: 1 }          SELECT col
+Having clause     $match after $group           HAVING
+Greater than      $gt                           >
+Less than         $lt                           <
+In list           $in: [val1, val2]             IN (val1, val2)

@@ -104,8 +104,6 @@ db.Student.deleteMany({age:{$lt:25}})
 
 23. Delete the first student whose isActive field is true.
 
-
-
 db.Student.deleteOne({isActive:true})
 
 24. Delete all students from 'Los Angeles'.
