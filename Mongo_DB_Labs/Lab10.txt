@@ -114,6 +114,9 @@ db.Deposit.find({AMOUNT: {$gt: 3000, $lt: 5000}})
 
 db.Deposit.find({$and:[{AMOUNT:{$gt:2000}},{BNAME:'VIRAR'}]})
 
+db.Deposit.find({AMOUNT: { $gt: 3000, $lt: 5000 }})
+
+db.Deposit.find({AMOUNT: { $gt: 3000 },AMOUNT: { $lt: 5000 }})//incorrect overwrites the first value
 
 8. Display all the documents with CNAME, BNAME and AMOUNT fields from Deposit collection. 
 
@@ -122,7 +125,6 @@ db.Deposit.find({},{_id:0,CNAME:1, BNAME:1 ,AMOUNT:1})
 9. Display all the documents of Deposit collection in ascending order by CNAME. 
 
 db.Deposit.find().sort({CNAME:1})
-
 
 10. Display all the documents of Deposit collection in descending order by BNAME. 
 
