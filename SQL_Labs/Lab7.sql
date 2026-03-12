@@ -75,22 +75,31 @@ DROP TRIGGER  FAC_NOT_REMOVE
 GO
 CREATE OR ALTER TRIGGER LOG_COURSE_OPS
 ON COURSE
-INSTEAD OF INSERT,UPDATE,DELETE
+INSTEAD OF INSERT, UPDATE, DELETE
 AS
 BEGIN
-         IF(EXISTS (SELECT inserted.CourseID FROM INSERTED) )
-      BEGIN
-              INSERT INTO LOG VALUES('INSERT OPERATIONS WAS PERFORMED',GETDATE())
-      END
-      IF(EXISTS (SELECT inserted.CourseID FROM INSERTED) AND EXISTS (SELECT deleted.CourseID FROM DELETED))
-      BEGIN
-       INSERT INTO LOG VALUES('UPDATE OPERATIONS WAS PERFORMED',GETDATE())
-          
-      END
-      ELSE
-      BEGIN
-                INSERT INTO LOG VALUES ('DELETE OPERATIONS WAS PERFORMED',GETDATE())
-      END 
+
+    -- UPDATE
+    IF EXISTS (SELECT * FROM inserted) AND EXISTS (SELECT * FROM deleted)
+    BEGIN
+        INSERT INTO LOG 
+        VALUES ('UPDATE OPERATION WAS PERFORMED', GETDATE())
+    END
+
+    -- INSERT
+    ELSE IF EXISTS (SELECT * FROM inserted)
+    BEGIN
+        INSERT INTO LOG 
+        VALUES ('INSERT OPERATION WAS PERFORMED', GETDATE())
+    END
+
+    -- DELETE
+    ELSE IF EXISTS (SELECT * FROM deleted)
+    BEGIN
+        INSERT INTO LOG 
+        VALUES ('DELETE OPERATION WAS PERFORMED', GETDATE())
+    END
+
 END
 GO
 
@@ -103,6 +112,18 @@ DROP TRIGGER LOG_COURSE_OPS
 --5. Create trigger to Block student to update their enrollment year and print message ‘students are not 
 --allowed to update their enrollment year’ 
 
+GO
+CREATE OR ALTER TRIGGER TR_BLOCK_ENROLLMENT_YEAR_UPDATE
+ON STUDENT
+INSTEAD OF UPDATE
+AS
+BEGIN
+    IF UPDATE(EnrollmentYear)
+    BEGIN
+        PRINT 'students are not allowed to update their enrollment year'
+    END
+END
+GO
 
 
 --6. Create trigger for student age validation (Min 18). 

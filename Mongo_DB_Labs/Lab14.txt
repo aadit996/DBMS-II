@@ -1,0 +1,459 @@
+Lab-14 Aggregate Method - $lookup (JOIN in MongoDB)
+MongoDB
+==============================================================
+THEORY : What is $lookup?
+==============================================================
+
+$lookup = JOIN in MongoDB (same as JOIN in MSSQL)
+It connects two collections based on a matching field.
+
+It always does a LEFT OUTER JOIN — meaning:
+  All records from the LEFT (starting) collection are returned,
+  even if there is no match in the other collection.
+
+------------------------------------------------------------
+MSSQL vs MongoDB JOIN — Side by Side
+------------------------------------------------------------
+
+MSSQL:
+  SELECT s.name, d.dept_name
+  FROM Student s
+  LEFT JOIN Department d ON s.dept_id = d._id;
+
+MongoDB Equivalent:
+  db.Student.aggregate([
+    { $lookup: {
+        from: "Department",
+        localField: "dept_id",
+        foreignField: "_id",
+        as: "dept_info"
+    }}
+  ])
+
+------------------------------------------------------------
+$lookup Syntax:
+
+  db.CollectionA.aggregate([
+    { $lookup: {
+        from: "CollectionB",       -- table to join with
+        localField: "fieldInA",    -- field from left collection (CollectionA)
+        foreignField: "fieldInB",  -- field from right collection (CollectionB)
+        as: "outputArrayName"      -- result stored in this new array field
+    }}
+  ])
+
+IMPORTANT: $lookup always stores the result as an ARRAY.
+  Even if only one document matches, it comes as [ {...} ]
+  That is why we use $unwind to convert array → single object.
+
+------------------------------------------------------------
+$unwind — What and Why?
+
+  Without $unwind:     dept_info: [ { _id: 101, dept_name: "CS" } ]
+  After $unwind:       dept_info: { _id: 101, dept_name: "CS" }
+
+  Use $unwind when you want to access fields inside the joined array
+  like: "$dept_info.dept_name"
+
+  Syntax:   { $unwind: "$arrayFieldName" }
+
+------------------------------------------------------------
+Collections Used in This Lab:
+
+  Student:    _id, name, dept_id, marks
+  Department: _id, dept_name
+  Fees:       _id, student_id, amount, status
+
+  Student joins Department on:  Student.dept_id = Department._id
+  Student joins Fees on:        Student._id     = Fees.student_id
+
+==============================================================
+INSERT DATA
+==============================================================
+
+db.Student.insertMany([
+  { "_id": 1, "name": "Amit",  "dept_id": 101, "marks": 82 },
+  { "_id": 2, "name": "Rina",  "dept_id": 102, "marks": 91 },
+  { "_id": 3, "name": "Karan", "dept_id": 101, "marks": 76 },
+  { "_id": 4, "name": "Meera", "dept_id": 103, "marks": 88 },
+  { "_id": 5, "name": "Iqbal", "dept_id": 102, "marks": 67 }
+]);
+
+db.Department.insertMany([
+  { "_id": 101, "dept_name": "Computer Science" },
+  { "_id": 102, "dept_name": "Electronics" },
+  { "_id": 103, "dept_name": "Mechanical" }
+]);
+
+db.Fees.insertMany([
+  { "_id": 1, "student_id": 1, "amount": 25000, "status": "Paid"   },
+  { "_id": 2, "student_id": 2, "amount": 30000, "status": "Unpaid" },
+  { "_id": 3, "student_id": 3, "amount": 25000, "status": "Paid"   },
+  { "_id": 4, "student_id": 4, "amount": 35000, "status": "Paid"   }
+]);
+
+==============================================================
+PART A – $lookup Queries
+==============================================================
+
+1. Fetches each student and attaches matching department details using $lookup.
+-- MSSQL: SELECT * FROM Student LEFT JOIN Department ON Student.dept_id = Department._id;
+-- Basic $lookup, no unwind needed if you just want raw joined result
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "department_info"
+  }}
+])
+
+------------------------------------------------------------------
+
+2. Joins students with departments and displays only student name and department name.
+-- MSSQL: SELECT s.name, d.dept_name FROM Student s JOIN Department d ON s.dept_id = d._id;
+-- $unwind converts dept_info array to object so we can access dept_info.dept_name
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept_info"
+  }},
+  { $unwind: "$dept_info" },
+  { $project: { _id: 0, name: 1, department: "$dept_info.dept_name" } }
+])
+
+------------------------------------------------------------------
+
+3. Retrieves every student along with their corresponding fee information.
+-- MSSQL: SELECT * FROM Student LEFT JOIN Fees ON Student._id = Fees.student_id;
+db.Student.aggregate([
+  { $lookup: {
+      from: "Fees",
+      localField: "_id",
+      foreignField: "student_id",
+      as: "fee_info"
+  }}
+])
+
+------------------------------------------------------------------
+
+4. Finds students whose fee status is marked as "Unpaid".
+-- MSSQL: SELECT s.* FROM Student s JOIN Fees f ON s._id = f.student_id WHERE f.status = 'Unpaid';
+-- $unwind first, then $match to filter on the joined field
+db.Student.aggregate([
+  { $lookup: {
+      from: "Fees",
+      localField: "_id",
+      foreignField: "student_id",
+      as: "fee"
+  }},
+  { $unwind: "$fee" },
+  { $match: { "fee.status": "Unpaid" } }
+])
+
+------------------------------------------------------------------
+
+5. Fetches students with both their department details and fee records in a single pipeline.
+-- MSSQL: SELECT * FROM Student
+--        LEFT JOIN Department ON Student.dept_id = Department._id
+--        LEFT JOIN Fees ON Student._id = Fees.student_id;
+-- Two $lookup stages one after another
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $lookup: {
+      from: "Fees",
+      localField: "_id",
+      foreignField: "student_id",
+      as: "fee"
+  }}
+])
+
+------------------------------------------------------------------
+
+6. Returns only those students for whom no matching department exists.
+-- MSSQL: SELECT * FROM Student s LEFT JOIN Department d ON s.dept_id = d._id WHERE d._id IS NULL;
+-- $size: 0 means the joined array is empty (no match found)
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $match: { dept: { $size: 0 } } }
+])
+
+------------------------------------------------------------------
+
+7. Selects students whose department name is "Computer Science" using join + match.
+-- MSSQL: SELECT s.* FROM Student s JOIN Department d ON s.dept_id = d._id
+--        WHERE d.dept_name = 'Computer Science';
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $unwind: "$dept" },
+  { $match: { "dept.dept_name": "Computer Science" } }
+])
+
+------------------------------------------------------------------
+
+8. Performs a join with departments and sorts all students by their marks in descending order.
+-- MSSQL: SELECT s.*, d.dept_name FROM Student s JOIN Department d ON s.dept_id = d._id
+--        ORDER BY s.marks DESC;
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $sort: { marks: -1 } }
+])
+
+------------------------------------------------------------------
+
+9. Counts how many students belong to each department after joining.
+-- MSSQL: SELECT d.dept_name, COUNT(*) FROM Student s
+--        JOIN Department d ON s.dept_id = d._id GROUP BY d.dept_name;
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $unwind: "$dept" },
+  { $group: { _id: "$dept.dept_name", totalStudents: { $sum: 1 } } }
+])
+
+------------------------------------------------------------------
+
+10. Joins with departments and filters students whose marks are greater than 80.
+-- MSSQL: SELECT s.*, d.dept_name FROM Student s JOIN Department d ON s.dept_id = d._id
+--        WHERE s.marks > 80;
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $match: { marks: { $gt: 80 } } }
+])
+
+------------------------------------------------------------------
+
+11. Finds the maximum marks obtained within each department using join + group.
+-- MSSQL: SELECT d.dept_name, MAX(s.marks) FROM Student s
+--        JOIN Department d ON s.dept_id = d._id GROUP BY d.dept_name;
+db.Student.aggregate([
+  { $lookup: {
+      from: "Department",
+      localField: "dept_id",
+      foreignField: "_id",
+      as: "dept"
+  }},
+  { $unwind: "$dept" },
+  { $group: { _id: "$dept.dept_name", maxMarks: { $max: "$marks" } } }
+])
+
+------------------------------------------------------------------
+
+12. Returns students whose fee status is "Paid" using a join on the fees collection.
+-- MSSQL: SELECT s.* FROM Student s JOIN Fees f ON s._id = f.student_id WHERE f.status = 'Paid';
+db.Student.aggregate([
+  { $lookup: {
+      from: "Fees",
+      localField: "_id",
+      foreignField: "student_id",
+      as: "fee"
+  }},
+  { $unwind: "$fee" },
+  { $match: { "fee.status": "Paid" } }
+])
+
+------------------------------------------------------------------
+
+13. Joins students with fee records and calculates total fee amount per student.
+-- MSSQL: SELECT s.name, SUM(f.amount) FROM Student s
+--        JOIN Fees f ON s._id = f.student_id GROUP BY s.name;
+db.Student.aggregate([
+  { $lookup: {
+      from: "Fees",
+      localField: "_id",
+      foreignField: "student_id",
+      as: "fee"
+  }},
+  { $unwind: "$fee" },
+  { $group: { _id: "$name", totalFee: { $sum: "$fee.amount" } } }
+])
+
+------------------------------------------------------------------
+
+14. Fetches each department along with all students enrolled in that department.
+-- Start from Department side this time (reversed join)
+-- MSSQL: SELECT d.*, s.* FROM Department d LEFT JOIN Student s ON d._id = s.dept_id;
+db.Department.aggregate([
+  { $lookup: {
+      from: "Student",
+      localField: "_id",
+      foreignField: "dept_id",
+      as: "student_info"
+  }}
+])
+
+------------------------------------------------------------------
+
+15. Returns only those departments which do not have any students mapped to them.
+-- MSSQL: SELECT d.* FROM Department d LEFT JOIN Student s ON d._id = s.dept_id
+--        WHERE s._id IS NULL;
+-- Start from Department, $size: 0 means no student matched
+db.Department.aggregate([
+  { $lookup: {
+      from: "Student",
+      localField: "_id",
+      foreignField: "dept_id",
+      as: "students"
+  }},
+  { $match: { students: { $size: 0 } } }
+])
+
+
+==============================================================
+PART B – Aggregate without $lookup
+==============================================================
+
+1. Returns the maximum marks scored by any student.
+-- MSSQL: SELECT MAX(marks) FROM Student;
+db.Student.aggregate([
+  { $group: { _id: null, maxMarks: { $max: "$marks" } } }
+])
+
+------------------------------------------------------------------
+
+2. Calculates the average marks of students separately for each department.
+-- MSSQL: SELECT dept_id, AVG(marks) FROM Student GROUP BY dept_id;
+db.Student.aggregate([
+  { $group: { _id: "$dept_id", avgMarks: { $avg: "$marks" } } }
+])
+
+------------------------------------------------------------------
+
+3. Computes the sum of all fee amounts paid by students.
+-- MSSQL: SELECT SUM(amount) FROM Fees;
+db.Fees.aggregate([
+  { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
+])
+
+------------------------------------------------------------------
+
+4. Counts how many students have scored marks >= 80.
+-- MSSQL: SELECT COUNT(*) FROM Student WHERE marks >= 80;
+db.Student.aggregate([
+  { $match: { marks: { $gte: 80 } } },
+  { $count: "studentsAbove80" }
+])
+
+------------------------------------------------------------------
+
+5. Finds the lowest marks within each department.
+-- MSSQL: SELECT dept_id, MIN(marks) FROM Student GROUP BY dept_id;
+db.Student.aggregate([
+  { $group: { _id: "$dept_id", minMarks: { $min: "$marks" } } }
+])
+
+
+==============================================================
+PART C – Advanced Aggregation
+==============================================================
+
+1. Arranges all student records in descending order of marks.
+-- MSSQL: SELECT * FROM Student ORDER BY marks DESC;
+db.Student.aggregate([
+  { $sort: { marks: -1 } }
+])
+
+------------------------------------------------------------------
+
+2. Divides students into buckets based on marks: 0-60, 60-80, and 80-100.
+-- MSSQL: No direct equivalent — done with CASE WHEN in MSSQL
+-- $bucket splits documents into ranges (like histogram)
+-- boundaries defines the range edges: 0, 60, 80, 100
+-- default catches anything outside boundaries
+db.Student.aggregate([
+  { $bucket: {
+      groupBy: "$marks",
+      boundaries: [0, 60, 80, 100],
+      default: "Other",
+      output: { count: { $sum: 1 }, students: { $push: "$name" } }
+  }}
+])
+
+------------------------------------------------------------------
+
+3. Calculates the total (sum) of marks obtained by students in each department.
+-- MSSQL: SELECT dept_id, SUM(marks) FROM Student GROUP BY dept_id;
+db.Student.aggregate([
+  { $group: { _id: "$dept_id", totalMarks: { $sum: "$marks" } } }
+])
+
+------------------------------------------------------------------
+
+4. Finds the average amount of fee recorded in the fees collection.
+-- MSSQL: SELECT AVG(amount) FROM Fees;
+db.Fees.aggregate([
+  { $group: { _id: null, avgAmount: { $avg: "$amount" } } }
+])
+
+------------------------------------------------------------------
+
+5. Compares each student's marks with the average marks of their department.
+-- MSSQL: SELECT s.name, s.marks, AVG(s2.marks) OVER (PARTITION BY s.dept_id)
+--        FROM Student s;
+-- Step 1: $group to get avg marks per dept
+-- Step 2: $lookup to join avg back to each student
+-- Step 3: $project to show comparison
+db.Student.aggregate([
+  { $lookup: {
+      from: "Student",
+      localField: "dept_id",
+      foreignField: "dept_id",
+      as: "deptStudents"
+  }},
+  { $addFields: {
+      deptAvgMarks: { $avg: "$deptStudents.marks" }
+  }},
+  { $project: {
+      _id: 0,
+      name: 1,
+      marks: 1,
+      dept_id: 1,
+      deptAvgMarks: 1,
+      aboveAverage: { $gt: ["$marks", "$deptAvgMarks"] }
+  }}
+])
+
+==============================================================
+QUICK REFERENCE — $lookup
+==============================================================
+
+Concept             MongoDB                        MSSQL
+-------             -------                        -----
+Join two tables     $lookup                        JOIN
+Left outer join     $lookup (default behaviour)    LEFT JOIN
+Access joined field $unwind first, then field      Direct column access
+No match found      joined array is empty []       NULL in joined cols
+Check no match      $match: { field: {$size: 0} }  WHERE col IS NULL
+Filter after join   $match: { "array.field": val } WHERE d.col = val
+Group after join    $unwind + $group               GROUP BY after JOIN
